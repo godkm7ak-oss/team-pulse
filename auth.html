@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#3B4FCA">
+  <title>TeamPulse — Sign in</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <div class="flex items-center justify-between mb-4">
+        <a href="index.html" class="logo" style="text-decoration: none; font-size: 18px;">
+          <span class="logo-icon" style="width: 30px; height: 30px; font-size: 15px;">⚡</span>
+          <span>TeamPulse</span>
+        </a>
+        <div data-lang-slot></div>
+      </div>
+
+      <div class="auth-mode" id="mode-switch">
+        <button data-mode="login" class="active" data-i18n="Login">Login</button>
+        <button data-mode="signup" data-i18n="Sign Up">Sign Up</button>
+      </div>
+
+      <!-- LOGIN -->
+      <div id="form-login">
+        <h2 data-i18n="Welcome back">Welcome back</h2>
+        <p class="sub" data-i18n="Sign in to your account">Sign in to your account</p>
+
+        <div class="auth-mode" id="login-role">
+          <button data-role="employee" class="active" data-i18n="For employees">For employees</button>
+          <button data-role="admin" data-i18n="For admins">For admins</button>
+        </div>
+
+        <!-- Quick employee login (just 2 fields) -->
+        <form id="quick-login-form">
+          <div class="form-group">
+            <label class="form-label" data-i18n="Company code">Company code</label>
+            <input class="form-input" type="text" name="joinCode" required data-i18n-placeholder="Enter the company join code" style="text-transform: uppercase; font-family: monospace; letter-spacing: 2px; font-weight: 700;">
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="Employee Code">Employee Code</label>
+            <input class="form-input" type="text" name="code" required data-i18n-placeholder="EMP001" style="text-transform: uppercase; font-family: monospace; letter-spacing: 2px; font-weight: 700;">
+            <div class="form-help" data-i18n="Get your code from your admin">Get your code from your admin</div>
+          </div>
+          <button class="btn btn-primary btn-block btn-lg" type="submit" data-i18n="Login">Login</button>
+        </form>
+
+        <!-- Admin email login -->
+        <form id="admin-login-form" class="hidden">
+          <div class="form-group">
+            <label class="form-label" data-i18n="Email">Email</label>
+            <input class="form-input" type="email" name="email" required data-i18n-placeholder="your@email.com">
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="Password">Password</label>
+            <input class="form-input" type="password" name="password" required>
+          </div>
+          <button class="btn btn-primary btn-block btn-lg" type="submit" data-i18n="Login">Login</button>
+        </form>
+
+        <div class="auth-foot">
+          <span data-i18n="Don't have an account?">Don't have an account?</span>
+          <a href="#" data-switch="signup" data-i18n="Sign Up">Sign Up</a>
+        </div>
+      </div>
+
+      <!-- SIGNUP -->
+      <div id="form-signup" class="hidden">
+        <h2 data-i18n="Create your account">Create your account</h2>
+        <p class="sub" data-i18n="14-day free trial. No card required.">14-day free trial. No card required.</p>
+
+        <form id="signup-admin-form">
+          <div class="form-group">
+            <label class="form-label" data-i18n="Full Name">Full Name</label>
+            <input class="form-input" type="text" name="name" required data-i18n-placeholder="Your full name">
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="Company Name">Company Name</label>
+            <input class="form-input" type="text" name="company" required data-i18n-placeholder="Acme Co., Ltd.">
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="Email">Email</label>
+            <input class="form-input" type="email" name="email" required data-i18n-placeholder="your@email.com">
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="Password">Password</label>
+            <input class="form-input" type="password" name="password" required minlength="6" data-i18n-placeholder="At least 6 characters">
+          </div>
+          <button class="btn btn-primary btn-block btn-lg" type="submit" data-i18n="Create company">Create company</button>
+        </form>
+
+        <div class="auth-foot">
+          <span data-i18n="Already have an account?">Already have an account?</span>
+          <a href="#" data-switch="login" data-i18n="Login">Login</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    // If already logged in, redirect to dashboard
+    if (DB.getSession()) {
+      window.location.href = 'dashboard.html';
+    }
+
+    // ===== Mode switching (login vs signup) =====
+    function switchMode(mode) {
+      document.querySelectorAll('#mode-switch button').forEach(b => {
+        b.classList.toggle('active', b.dataset.mode === mode);
+      });
+      document.getElementById('form-login').classList.toggle('hidden', mode !== 'login');
+      document.getElementById('form-signup').classList.toggle('hidden', mode !== 'signup');
+    }
+
+    document.querySelectorAll('#mode-switch button').forEach(b => {
+      b.addEventListener('click', () => switchMode(b.dataset.mode));
+    });
+
+    document.querySelectorAll('[data-switch]').forEach(a => {
+      a.addEventListener('click', e => {
+        e.preventDefault();
+        switchMode(a.dataset.switch);
+      });
+    });
+
+    // ===== Login role (employee quick vs admin email) =====
+    function switchRole(role) {
+      document.querySelectorAll('#login-role button').forEach(b => {
+        b.classList.toggle('active', b.dataset.role === role);
+      });
+      document.getElementById('quick-login-form').classList.toggle('hidden', role !== 'employee');
+      document.getElementById('admin-login-form').classList.toggle('hidden', role !== 'admin');
+    }
+    document.querySelectorAll('#login-role button').forEach(b => {
+      b.addEventListener('click', () => switchRole(b.dataset.role));
+    });
+
+    // Check URL mode
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('mode') === 'signup') switchMode('signup');
+
+    // ===== Quick employee login (joinCode + code) =====
+    document.getElementById('quick-login-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const joinCode = String(fd.get('joinCode') || '').trim().toUpperCase();
+      const code = String(fd.get('code') || '').trim();
+      if (!joinCode || !code) {
+        UI.toast(I18N.t('Please fill in all fields'), 'error'); return;
+      }
+      const res = DB.findUserByCodeLogin(joinCode, code);
+      if (res.error === 'company') {
+        UI.toast(I18N.t('Company not found') + ': ' + joinCode + ' (' + (res.debug.total || 0) + ' total)', 'error');
+        return;
+      }
+      if (res.error === 'code') {
+        UI.toast(I18N.t('Code not found in this company') + ' — ' + (res.debug.totalUsers || 0) + ' users, codes: ' + (res.debug.codes || []).join(', '), 'error');
+        return;
+      }
+      if (res.error === 'duplicate') {
+        UI.toast(I18N.t('Multiple employees share this code — please ask your admin to fix'), 'error'); return;
+      }
+      const { user, company } = res;
+      DB.setSession({ userId: user.id, companyId: company.id, role: user.role });
+      UI.toast(I18N.t('Welcome back') + ', ' + user.name, 'success');
+      setTimeout(() => window.location.href = 'dashboard.html', 500);
+    });
+
+    // ===== Admin email login =====
+    document.getElementById('admin-login-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const email = fd.get('email').trim();
+      const password = fd.get('password');
+      const user = DB.getUserByEmail(email);
+      if (!user || user.password !== password) {
+        UI.toast(I18N.t('Invalid email or password'), 'error');
+        return;
+      }
+      DB.setSession({ userId: user.id, companyId: user.companyId, role: user.role });
+      UI.toast(I18N.t('Welcome back') + ', ' + user.name, 'success');
+      setTimeout(() => window.location.href = 'dashboard.html', 500);
+    });
+
+    // ===== Admin signup (create company) =====
+    document.getElementById('signup-admin-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const name = fd.get('name').trim();
+      const companyName = fd.get('company').trim();
+      const email = fd.get('email').trim().toLowerCase();
+      const password = fd.get('password');
+
+      if (!name || !companyName || !email || !password) {
+        UI.toast(I18N.t('Please fill in all fields'), 'error'); return;
+      }
+      if (password.length < 6) {
+        UI.toast(I18N.t('Password too short'), 'error'); return;
+      }
+      if (DB.getUserByEmail(email)) {
+        UI.toast(I18N.t('Email already exists'), 'error'); return;
+      }
+
+      const company = DB.createCompany(companyName, email);
+      const user = DB.createUser({
+        companyId: company.id, email, password, name,
+        role: 'admin', position: 'Admin'
+      });
+      DB.setSession({ userId: user.id, companyId: company.id, role: 'admin' });
+      UI.toast(I18N.t('Welcome back') + ', ' + name, 'success');
+      setTimeout(() => window.location.href = 'dashboard.html', 500);
+    });
+  </script>
+</body>
+</html>

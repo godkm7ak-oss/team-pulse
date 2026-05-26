@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#3B4FCA">
+  <title>TeamPulse — Profile</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="app">
+  <main class="container" id="root"></main>
+
+  <!-- Edit profile modal -->
+  <div class="modal-overlay" id="edit-modal">
+    <div class="modal">
+      <div class="modal-handle"></div>
+      <div class="modal-header">
+        <div class="modal-title" data-i18n="Edit profile">Edit profile</div>
+        <button class="icon-btn" onclick="UI.closeModal('edit-modal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="edit-form">
+          <div class="form-group">
+            <label class="form-label" data-i18n="Full Name">Full Name</label>
+            <input class="form-input" type="text" name="name" required>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" data-i18n="Position">Position</label>
+              <input class="form-input" type="text" name="position">
+            </div>
+            <div class="form-group">
+              <label class="form-label" data-i18n="Department">Department</label>
+              <input class="form-input" type="text" name="department">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="Phone">Phone</label>
+            <input class="form-input" type="tel" name="phone">
+          </div>
+          <button class="btn btn-primary btn-block btn-lg" type="submit" data-i18n="Save">Save</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change password modal -->
+  <div class="modal-overlay" id="pwd-modal">
+    <div class="modal">
+      <div class="modal-handle"></div>
+      <div class="modal-header">
+        <div class="modal-title" data-i18n="Change password">Change password</div>
+        <button class="icon-btn" onclick="UI.closeModal('pwd-modal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="pwd-form">
+          <div class="form-group">
+            <label class="form-label" data-i18n="Current password">Current password</label>
+            <input class="form-input" type="password" name="current" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="New password">New password</label>
+            <input class="form-input" type="password" name="new" required minlength="6">
+          </div>
+          <button class="btn btn-primary btn-block btn-lg" type="submit" data-i18n="Save">Save</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    const ctx = UI.requireAuth();
+    if (ctx) {
+      UI.renderHeader('Profile');
+
+      function render() {
+        const root = document.getElementById('root');
+        const u = DB.getUser(ctx.user.id);
+        const balance = DB.getLeaveBalance(u.id);
+
+        root.innerHTML = `
+          <div class="card text-center">
+            <div style="position: relative; display: inline-block;">
+              ${UI.avatarEl(u, 'xl')}
+              <button class="icon-btn primary" onclick="document.getElementById('pic-upload').click()" style="position: absolute; bottom: -4px; right: -4px; width: 34px; height: 34px; border: 3px solid var(--surface);" title="Change picture">📷</button>
+            </div>
+            <input type="file" id="pic-upload" accept="image/*" style="display: none;" onchange="uploadMyPic(this)">
+            <div style="font-size: 22px; font-weight: 700; margin-top: 14px;">${escapeHtml(u.name)}</div>
+            <div class="text-muted text-sm">${escapeHtml(u.position || '—')} ${u.department ? '· ' + escapeHtml(u.department) : ''}</div>
+            <div class="text-muted text-xs mt-1">${escapeHtml(u.email)}</div>
+            ${u.role === 'admin' ? `<span class="badge badge-primary mt-2" data-i18n="Admin">${I18N.t('Admin')}</span>` : ''}
+            <div class="mt-3 flex gap-2" style="justify-content: center; flex-wrap: wrap;">
+              <button class="btn btn-secondary btn-sm" onclick="openEdit()">✏️ <span data-i18n="Edit profile">Edit profile</span></button>
+              <button class="btn btn-secondary btn-sm" onclick="UI.openModal('pwd-modal')">🔒 <span data-i18n="Change password">Change password</span></button>
+              ${u.avatar ? `<button class="btn btn-secondary btn-sm" onclick="removeMyPic()">🗑 <span data-i18n="Remove picture">Remove picture</span></button>` : ''}
+            </div>
+          </div>
+
+          <div class="section-title" data-i18n="Leave balance">Leave balance</div>
+          <div class="stat-grid">
+            ${['annual', 'sick', 'personal', 'emergency'].map(type => {
+              const b = balance[type];
+              const colors = { annual: 'blue', sick: 'red', personal: 'cyan', emergency: 'amber' };
+              const labels = { annual: 'Annual leave', sick: 'Sick leave', personal: 'Personal leave', emergency: 'Emergency leave' };
+              return `
+                <div class="stat-card ${colors[type]}">
+                  <div class="stat-label" data-i18n="${labels[type]}">${I18N.t(labels[type])}</div>
+                  <div class="stat-value">${b.total - b.used}</div>
+                  <div class="stat-sub">${b.used} / ${b.total} ${I18N.t('days')}</div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <div class="card">
+            <div class="card-title mb-2" data-i18n="Account">Account</div>
+            <div class="setting-row">
+              <div class="info">
+                <div class="label" data-i18n="Email">Email</div>
+              </div>
+              <div class="text-sm text-muted">${escapeHtml(u.email)}</div>
+            </div>
+            <div class="setting-row">
+              <div class="info">
+                <div class="label" data-i18n="Phone">Phone</div>
+              </div>
+              <div class="text-sm text-muted">${escapeHtml(u.phone || '—')}</div>
+            </div>
+            <div class="setting-row">
+              <div class="info">
+                <div class="label" data-i18n="Hire date">Hire date</div>
+              </div>
+              <div class="text-sm text-muted">${DB.formatDate(u.hireDate)}</div>
+            </div>
+            <div class="setting-row">
+              <div class="info">
+                <div class="label" data-i18n="Company">Company</div>
+              </div>
+              <div class="text-sm text-muted">${escapeHtml(ctx.company.name)}</div>
+            </div>
+          </div>
+
+          <div class="section-title mt-3">More</div>
+          <div class="card" style="padding: 8px 16px;">
+            <a href="schedule.html?tab=meetings" class="list-item" style="text-decoration: none; color: inherit;">
+              <div class="avatar sm" style="background: linear-gradient(135deg, var(--accent), #06B6D4);">📅</div>
+              <div class="list-item-main">
+                <div class="list-item-title" data-i18n="Meetings">Meetings</div>
+              </div>
+              <span style="color: var(--text-3);">›</span>
+            </a>
+            <a href="attendance.html" class="list-item" style="text-decoration: none; color: inherit;">
+              <div class="avatar sm" style="background: linear-gradient(135deg, var(--warning), #B45309);">📊</div>
+              <div class="list-item-main">
+                <div class="list-item-title" data-i18n="Attendance">Attendance</div>
+              </div>
+              <span style="color: var(--text-3);">›</span>
+            </a>
+            ${u.role === 'admin' ? `
+              <a href="employees.html" class="list-item" style="text-decoration: none; color: inherit;">
+                <div class="avatar sm" style="background: linear-gradient(135deg, #8B5CF6, #6D28D9);">👥</div>
+                <div class="list-item-main">
+                  <div class="list-item-title" data-i18n="Team">Team</div>
+                </div>
+                <span style="color: var(--text-3);">›</span>
+              </a>
+              <a href="settings.html" class="list-item" style="text-decoration: none; color: inherit;">
+                <div class="avatar sm" style="background: linear-gradient(135deg, var(--text-2), var(--text));">⚙️</div>
+                <div class="list-item-main">
+                  <div class="list-item-title" data-i18n="Company Settings">Company Settings</div>
+                </div>
+                <span style="color: var(--text-3);">›</span>
+              </a>
+            ` : ''}
+          </div>
+
+          <button class="btn btn-danger btn-block btn-lg" onclick="logout()" style="margin-top: 12px;">⏻ <span data-i18n="Logout">Logout</span></button>
+        `;
+
+        I18N.apply();
+      }
+
+      window.openEdit = function() {
+        const u = DB.getUser(ctx.user.id);
+        const f = document.getElementById('edit-form');
+        f.name.value = u.name;
+        f.position.value = u.position || '';
+        f.department.value = u.department || '';
+        f.phone.value = u.phone || '';
+        UI.openModal('edit-modal');
+      };
+
+      document.getElementById('edit-form').addEventListener('submit', e => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const u = DB.getUser(ctx.user.id);
+        u.name = fd.get('name').trim();
+        u.position = fd.get('position').trim();
+        u.department = fd.get('department').trim();
+        u.phone = fd.get('phone').trim();
+        DB.saveUser(u);
+        UI.toast(I18N.t('Settings saved'), 'success');
+        UI.closeModal('edit-modal');
+        render();
+      });
+
+      document.getElementById('pwd-form').addEventListener('submit', e => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const u = DB.getUser(ctx.user.id);
+        if (u.password !== fd.get('current')) {
+          UI.toast(I18N.t('Invalid email or password'), 'error'); return;
+        }
+        u.password = fd.get('new');
+        DB.saveUser(u);
+        UI.toast(I18N.t('Settings saved'), 'success');
+        UI.closeModal('pwd-modal');
+        e.target.reset();
+      });
+
+      window.uploadMyPic = function(input) {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        if (file.size > 5 * 1024 * 1024) {
+          UI.toast(I18N.t('Picture too large'), 'error'); return;
+        }
+        DB.resizeImageFile(file, 280, dataUrl => {
+          if (!dataUrl) { UI.toast(I18N.t('Picture too large'), 'error'); return; }
+          const u = DB.getUser(ctx.user.id);
+          u.avatar = dataUrl;
+          DB.saveUser(u);
+          UI.toast(I18N.t('Picture updated'), 'success');
+          render();
+        });
+      };
+
+      window.removeMyPic = function() {
+        const u = DB.getUser(ctx.user.id);
+        delete u.avatar;
+        DB.saveUser(u);
+        UI.toast(I18N.t('Picture updated'), 'success');
+        render();
+      };
+
+      window.logout = function() {
+        UI.confirm(I18N.t('Logout') + '?', () => {
+          DB.clearSession();
+          window.location.href = 'auth.html';
+        });
+      };
+
+      document.querySelectorAll('.modal-overlay').forEach(m => {
+        m.addEventListener('click', e => {
+          if (e.target === m) m.classList.remove('active');
+        });
+      });
+
+      function escapeHtml(s) {
+        return String(s || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+      }
+
+      render();
+      UI.renderBottomNav('profile', ctx.user.role);
+      I18N.injectToggle();
+    }
+  </script>
+</body>
+</html>

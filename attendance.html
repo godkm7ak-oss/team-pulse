@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#3B4FCA">
+  <title>TeamPulse — Attendance</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="app">
+  <main class="container" id="root"></main>
+
+  <script src="js/data.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    const ctx = UI.requireAuth();
+    if (ctx) {
+      const isAdmin = ctx.user.role === 'admin';
+      UI.renderHeader('Attendance', {
+        action: `<button class="icon-btn" onclick="exportCsv()" title="Export">⇣</button>`
+      });
+
+      let currentTab = 'week';
+
+      function render() {
+        const root = document.getElementById('root');
+        const allCi = isAdmin
+          ? DB.getCheckinsByCompany(ctx.company.id)
+          : DB.getCheckinsByUser(ctx.user.id);
+
+        const today = new Date();
+        const weekAgo = new Date(today.getTime() - 7 * 86400000).toISOString().slice(0, 10);
+        const monthAgo = new Date(today.getTime() - 30 * 86400000).toISOString().slice(0, 10);
+        const todayStr = today.toISOString().slice(0, 10);
+
+        let filtered;
+        if (currentTab === 'today') filtered = allCi.filter(c => c.date === todayStr);
+        else if (currentTab === 'week') filtered = allCi.filter(c => c.date >= weekAgo);
+        else if (currentTab === 'month') filtered = allCi.filter(c => c.date >= monthAgo);
+        else filtered = allCi;
+
+        const sorted = filtered.sort((a, b) => (b.date + b.checkInAt).localeCompare(a.date + a.checkInAt));
+
+        // Stats
+        const totalLate = sorted.filter(c => c.lateMinutes > 0).length;
+        const totalHours = sorted.reduce((s, c) => {
+          if (!c.checkOutAt) return s;
+          return s + ((new Date(c.checkOutAt) - new Date(c.checkInAt)) / 3600000);
+        }, 0);
+
+        let html = `
+          <div class="tabs">
+            <button class="tab ${currentTab === 'today' ? 'active' : ''}" data-tab="today" data-i18n="Today">Today</button>
+            <button class="tab ${currentTab === 'week' ? 'active' : ''}" data-tab="week" data-i18n="This Week">This Week</button>
+            <button class="tab ${currentTab === 'month' ? 'active' : ''}" data-tab="month" data-i18n="This Month">This Month</button>
+            <button class="tab ${currentTab === 'all' ? 'active' : ''}" data-tab="all" data-i18n="All">All</button>
+          </div>
+
+          <div class="stat-grid" style="grid-template-columns: repeat(3, 1fr);">
+            <div class="stat-card blue">
+              <div class="stat-label" data-i18n="Date">Records</div>
+              <div class="stat-value">${sorted.length}</div>
+            </div>
+            <div class="stat-card amber">
+              <div class="stat-label" data-i18n="Late">Late</div>
+              <div class="stat-value">${totalLate}</div>
+            </div>
+            <div class="stat-card green">
+              <div class="stat-label" data-i18n="Hours">Hours</div>
+              <div class="stat-value">${totalHours.toFixed(1)}</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title" data-i18n="Attendance">Attendance</div>
+            </div>
+            ${sorted.length === 0 ? `
+              <div class="empty">
+                <div class="icon">📊</div>
+                <div class="title" data-i18n="No attendance records">No attendance records</div>
+              </div>
+            ` : sorted.map(c => {
+              const u = DB.getUser(c.userId);
+              const shift = DB.getShift(ctx.company, c.shiftId);
+              const hours = c.checkOutAt
+                ? ((new Date(c.checkOutAt) - new Date(c.checkInAt)) / 3600000).toFixed(1)
+                : '—';
+              return `
+                <div class="list-item">
+                  ${isAdmin ? UI.avatarEl(u, 'sm') : `<div class="avatar sm" style="background: ${c.lateMinutes > 0 ? 'var(--warning)' : 'var(--success)'};">${c.lateMinutes > 0 ? '⏰' : '✓'}</div>`}
+                  <div class="list-item-main">
+                    <div class="list-item-title">${isAdmin && u ? escapeHtml(u.name) : DB.formatDate(c.date)}${shift ? ' <span class="badge badge-cyan" style="font-size: 10px;">' + escapeHtml(shift.name) + '</span>' : ''}</div>
+                    <div class="list-item-sub">
+                      ${isAdmin ? DB.formatDate(c.date) + ' · ' : ''}
+                      ${DB.formatTime(c.checkInAt)} → ${c.checkOutAt ? DB.formatTime(c.checkOutAt) : '—'}
+                      · ${hours}h · ${c.method.toUpperCase()}
+                    </div>
+                  </div>
+                  ${c.lateMinutes > 0
+                    ? `<span class="badge badge-warning">${c.lateMinutes}m</span>`
+                    : `<span class="badge badge-success" data-i18n="On time">${I18N.t('On time')}</span>`}
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+
+        root.innerHTML = html;
+        root.querySelectorAll('[data-tab]').forEach(t => {
+          t.addEventListener('click', () => { currentTab = t.dataset.tab; render(); });
+        });
+        I18N.apply();
+      }
+
+      window.exportCsv = function() {
+        const ci = isAdmin
+          ? DB.getCheckinsByCompany(ctx.company.id)
+          : DB.getCheckinsByUser(ctx.user.id);
+        const rows = [['Date', 'Employee', 'Shift', 'Check In', 'Check Out', 'Hours', 'Method', 'Late (min)']];
+        ci.forEach(c => {
+          const u = DB.getUser(c.userId);
+          const shift = DB.getShift(ctx.company, c.shiftId);
+          const hours = c.checkOutAt
+            ? ((new Date(c.checkOutAt) - new Date(c.checkInAt)) / 3600000).toFixed(2)
+            : '';
+          rows.push([
+            c.date,
+            u ? u.name : '',
+            shift ? shift.name : '',
+            DB.formatTime(c.checkInAt),
+            c.checkOutAt ? DB.formatTime(c.checkOutAt) : '',
+            hours,
+            c.method,
+            c.lateMinutes || 0
+          ]);
+        });
+        const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+        const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `attendance-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        UI.toast('CSV exported', 'success');
+      };
+
+      function escapeHtml(s) {
+        return String(s || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+      }
+
+      render();
+      UI.renderBottomNav('attendance', ctx.user.role);
+      I18N.injectToggle();
+    }
+  </script>
+</body>
+</html>

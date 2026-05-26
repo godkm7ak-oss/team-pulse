@@ -1,0 +1,18 @@
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local env / secrets (never commit these)
+.env
+.env.local
+
+# Node (if backend added later)
+node_modules/
+npm-debug.log*

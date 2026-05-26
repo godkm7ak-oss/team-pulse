@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#3B4FCA">
+  <title>TeamPulse — Schedule</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="app">
+  <main class="container" id="root"></main>
+
+  <!-- Assign shift modal -->
+  <div class="modal-overlay" id="assign-modal">
+    <div class="modal">
+      <div class="modal-handle"></div>
+      <div class="modal-header">
+        <div class="modal-title" id="assign-title" data-i18n="Assign shift">Assign shift</div>
+        <button class="icon-btn" onclick="UI.closeModal('assign-modal')">✕</button>
+      </div>
+      <div class="modal-body" id="assign-body"></div>
+    </div>
+  </div>
+
+  <!-- Meeting modal -->
+  <div class="modal-overlay" id="meeting-modal">
+    <div class="modal">
+      <div class="modal-handle"></div>
+      <div class="modal-header">
+        <div class="modal-title" id="meeting-modal-title" data-i18n="New meeting">New meeting</div>
+        <button class="icon-btn" onclick="UI.closeModal('meeting-modal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="meeting-form">
+          <div class="form-group">
+            <label class="form-label" data-i18n="Meeting title">Meeting title</label>
+            <input class="form-input" type="text" name="title" required placeholder="">
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="Date">Date</label>
+            <input class="form-input" type="date" name="date" required>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" data-i18n="Start time">Start time</label>
+              <input class="form-input" type="time" name="startTime" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" data-i18n="End time">End time</label>
+              <input class="form-input" type="time" name="endTime" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="Location or link">Location or link</label>
+            <input class="form-input" type="text" name="location" placeholder="Conference room A / Zoom link">
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="Notes">Notes</label>
+            <textarea class="form-textarea" name="notes"></textarea>
+          </div>
+          <div class="form-group">
+            <div class="flex items-center justify-between mb-2">
+              <label class="form-label" style="margin: 0;" data-i18n="Attendees">Attendees</label>
+              <button type="button" class="btn btn-ghost btn-sm" onclick="toggleAllAttendees()" data-i18n="Select all">Select all</button>
+            </div>
+            <div id="attendees-list" class="card" style="padding: 6px 12px; margin: 0; max-height: 240px; overflow-y: auto;"></div>
+          </div>
+          <button class="btn btn-primary btn-block btn-lg" type="submit" data-i18n="Save">Save</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Meeting detail modal -->
+  <div class="modal-overlay" id="meeting-detail-modal">
+    <div class="modal">
+      <div class="modal-handle"></div>
+      <div class="modal-body" id="meeting-detail-body"></div>
+    </div>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    const ctx = UI.requireAuth();
+    if (ctx) {
+      const isAdmin = ctx.user.role === 'admin';
+      UI.renderHeader('Schedule');
+
+      const urlParams = new URLSearchParams(window.location.search);
+      let currentTab = urlParams.get('tab') === 'meetings' ? 'meetings' : 'schedule';
+      let weekStart = startOfWeek(new Date());
+
+      function startOfWeek(d) {
+        const day = new Date(d);
+        const dow = day.getDay(); // 0=Sun
+        const diff = dow === 0 ? -6 : 1 - dow; // start Monday
+        day.setDate(day.getDate() + diff);
+        day.setHours(0,0,0,0);
+        return day;
+      }
+
+      function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+      function fmtDate(d) { return d.toISOString().slice(0, 10); }
+      function dayLabel(d, short) {
+        const days = short
+          ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+          : ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        return I18N.t(days[d.getDay()]);
+      }
+
+      function render() {
+        const root = document.getElementById('root');
+        let html = `
+          <div class="tabs">
+            <button class="tab ${currentTab === 'schedule' ? 'active' : ''}" data-tab="schedule" data-i18n="Schedule">Schedule</button>
+            <button class="tab ${currentTab === 'meetings' ? 'active' : ''}" data-tab="meetings" data-i18n="Meetings">Meetings</button>
+          </div>
+        `;
+
+        if (currentTab === 'schedule') {
+          html += renderSchedule();
+        } else {
+          html += renderMeetings();
+        }
+
+        root.innerHTML = html;
+        root.querySelectorAll('[data-tab]').forEach(t => {
+          t.addEventListener('click', () => { currentTab = t.dataset.tab; render(); });
+        });
+        if (currentTab === 'schedule') bindSchedule();
+        else bindMeetings();
+        I18N.apply();
+      }
+
+      // ===== SCHEDULE TAB =====
+      function renderSchedule() {
+        const shifts = ctx.company.shifts || [];
+        if (shifts.length === 0) {
+          return `
+            <div class="card">
+              <div class="empty">
+                <div class="icon">🕒</div>
+                <div class="title" data-i18n="No shifts yet">No shifts yet</div>
+                <div class="sub" data-i18n="Add shifts to let employees pick when they check in">Add shifts to let employees pick when they check in</div>
+                ${isAdmin ? `<a href="settings.html" class="btn btn-primary btn-sm mt-3" style="text-decoration: none;">⚙️ <span data-i18n="Company Settings">Company Settings</span></a>` : ''}
+              </div>
+            </div>
+          `;
+        }
+
+        const weekEnd = addDays(weekStart, 6);
+        const weekLabel = `${weekStart.toLocaleDateString(I18N.lang === 'th' ? 'th-TH' : 'en-US', { day: 'numeric', month: 'short' })} – ${weekEnd.toLocaleDateString(I18N.lang === 'th' ? 'th-TH' : 'en-US', { day: 'numeric', month: 'short' })}`;
+
+        let html = `
+          <div class="card">
+            <div class="flex items-center justify-between mb-3">
+              <button class="icon-btn" onclick="prevWeek()">‹</button>
+              <div class="text-center">
+                <div class="text-xs text-muted" data-i18n="Week of">Week of</div>
+                <div style="font-size: 15px; font-weight: 700;">${weekLabel}</div>
+              </div>
+              <button class="icon-btn" onclick="nextWeek()">›</button>
+            </div>
+            <button class="btn btn-ghost btn-sm btn-block" onclick="goToday()" data-i18n="This week">This week</button>
+          </div>
+        `;
+
+        if (isAdmin) {
+          // Admin: list employees with their week
+          const users = DB.getUsersByCompany(ctx.company.id);
+          html += `
+            <div class="text-xs text-muted mb-2" data-i18n="Tap an employee to assign their shift for this day">Tap an employee to assign their shift for this day</div>
+          `;
+          // Show day headers
+          html += renderWeekHeader();
+          users.forEach(u => {
+            html += renderEmployeeRow(u);
+          });
+        } else {
+          // Employee: their own week
+          html += renderEmployeeWeek(ctx.user);
+        }
+        return html;
+      }
+
+      function renderWeekHeader() {
+        let html = `<div class="card" style="padding: 10px;">
+          <div style="display: grid; grid-template-columns: 90px repeat(7, 1fr); gap: 4px; align-items: center; font-size: 11px; font-weight: 700; color: var(--text-2); text-transform: uppercase;">
+            <div></div>`;
+        for (let i = 0; i < 7; i++) {
+          const d = addDays(weekStart, i);
+          const isToday = fmtDate(d) === fmtDate(new Date());
+          html += `<div class="text-center" style="${isToday ? 'color: var(--primary);' : ''}">${dayLabel(d, true)}<br><span style="font-size: 13px; font-weight: 800;">${d.getDate()}</span></div>`;
+        }
+        html += `</div></div>`;
+        return html;
+      }
+
+      function renderEmployeeRow(user) {
+        let html = `<div class="card" style="padding: 10px;">
+          <div style="display: grid; grid-template-columns: 90px repeat(7, 1fr); gap: 4px; align-items: center;">
+            <div class="flex items-center gap-2" style="min-width: 0;">
+              ${UI.avatarEl(user, 'sm')}
+              <div style="font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(user.name.split(' ')[0])}</div>
+            </div>`;
+        for (let i = 0; i < 7; i++) {
+          const d = addDays(weekStart, i);
+          const dateStr = fmtDate(d);
+          const sch = DB.getScheduleForUserOnDate(user.id, dateStr);
+          const shift = sch ? DB.getShift(ctx.company, sch.shiftId) : null;
+          const bg = shift ? shift.color || 'var(--primary)' : 'var(--border-light)';
+          const color = shift ? 'white' : 'var(--text-3)';
+          const label = shift ? shift.name.slice(0, 4) : '–';
+          html += `<button class="schedule-cell" data-user="${user.id}" data-date="${dateStr}" style="background: ${bg}; color: ${color}; border: none; padding: 6px 4px; border-radius: 6px; font-size: 10px; font-weight: 700; cursor: pointer; min-height: 38px; line-height: 1.2;">${escapeHtml(label)}</button>`;
+        }
+        html += `</div></div>`;
+        return html;
+      }
+
+      function renderEmployeeWeek(user) {
+        let html = `<div class="text-xs text-muted mb-2" data-i18n="Tap a day to see details">Tap a day to see details</div>`;
+        for (let i = 0; i < 7; i++) {
+          const d = addDays(weekStart, i);
+          const dateStr = fmtDate(d);
+          const isToday = dateStr === fmtDate(new Date());
+          const sch = DB.getScheduleForUserOnDate(user.id, dateStr);
+          const shift = sch ? DB.getShift(ctx.company, sch.shiftId) : null;
+          html += `
+            <div class="card" style="padding: 14px; ${isToday ? 'border-color: var(--primary); border-width: 2px;' : ''}">
+              <div class="flex items-center gap-3">
+                <div style="width: 50px; text-align: center;">
+                  <div class="text-xs text-muted">${dayLabel(d, true)}</div>
+                  <div style="font-size: 22px; font-weight: 800; ${isToday ? 'color: var(--primary);' : ''}">${d.getDate()}</div>
+                </div>
+                <div class="flex-1">
+                  ${shift ? `
+                    <div style="font-size: 15px; font-weight: 700;">${escapeHtml(shift.name)}</div>
+                    <div class="text-sm text-muted">${shift.start} – ${shift.end}</div>
+                  ` : `
+                    <div style="font-size: 15px; font-weight: 600; color: var(--text-3);" data-i18n="Day off">Day off</div>
+                  `}
+                </div>
+                ${shift ? `<div class="avatar sm" style="background: ${shift.color || 'var(--primary)'};">🕒</div>` : ''}
+              </div>
+            </div>
+          `;
+        }
+        return html;
+      }
+
+      function bindSchedule() {
+        document.querySelectorAll('.schedule-cell').forEach(b => {
+          b.addEventListener('click', () => openAssign(b.dataset.user, b.dataset.date));
+        });
+      }
+
+      window.prevWeek = function() { weekStart = addDays(weekStart, -7); render(); };
+      window.nextWeek = function() { weekStart = addDays(weekStart, 7); render(); };
+      window.goToday = function() { weekStart = startOfWeek(new Date()); render(); };
+
+      function openAssign(userId, dateStr) {
+        const u = DB.getUser(userId);
+        const sch = DB.getScheduleForUserOnDate(userId, dateStr);
+        const shifts = ctx.company.shifts || [];
+        const d = new Date(dateStr + 'T00:00:00');
+        document.getElementById('assign-title').textContent = `${u.name} · ${d.toLocaleDateString(I18N.lang === 'th' ? 'th-TH' : 'en-US', { weekday: 'short', day: 'numeric', month: 'short' })}`;
+        const body = document.getElementById('assign-body');
+        body.innerHTML = `
+          <div class="method-pills" style="flex-wrap: wrap;">
+            ${shifts.map(s => `
+              <button class="method-pill ${sch && sch.shiftId === s.id ? 'active' : ''}" data-shift="${s.id}" style="${sch && sch.shiftId === s.id ? 'background:' + (s.color || 'var(--primary)') + '; border-color:' + (s.color || 'var(--primary)') : ''}">
+                🕒 ${escapeHtml(s.name)} <span style="opacity: 0.8;">${s.start}–${s.end}</span>
+              </button>
+            `).join('')}
+            <button class="method-pill ${!sch ? 'active' : ''}" data-shift="">🏖️ <span data-i18n="Day off">Day off</span></button>
+          </div>
+        `;
+        body.querySelectorAll('[data-shift]').forEach(b => {
+          b.addEventListener('click', () => {
+            DB.setScheduleAssignment(ctx.company.id, userId, dateStr, b.dataset.shift || null);
+            UI.closeModal('assign-modal');
+            UI.toast(I18N.t('Settings saved'), 'success');
+            render();
+          });
+        });
+        UI.openModal('assign-modal');
+      }
+
+      // ===== MEETINGS TAB =====
+      function renderMeetings() {
+        const meetings = DB.getMeetingsForUser({ id: ctx.user.id, companyId: ctx.company.id })
+          .sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
+        const today = new Date().toISOString().slice(0, 10);
+        const upcoming = meetings.filter(m => m.date >= today);
+        const past = meetings.filter(m => m.date < today).reverse();
+
+        let html = `
+          <button class="btn btn-primary btn-block mb-3" onclick="openMeeting()">➕ <span data-i18n="New meeting">New meeting</span></button>
+        `;
+
+        if (upcoming.length === 0 && past.length === 0) {
+          html += `
+            <div class="card">
+              <div class="empty">
+                <div class="icon">📅</div>
+                <div class="title" data-i18n="No meetings yet">No meetings yet</div>
+              </div>
+            </div>
+          `;
+          return html;
+        }
+
+        if (upcoming.length > 0) {
+          html += `<div class="section-title" data-i18n="Upcoming meetings">Upcoming meetings</div>`;
+          upcoming.forEach(m => html += renderMeetingCard(m));
+        }
+        if (past.length > 0) {
+          html += `<div class="section-title mt-3" data-i18n="Past meetings">Past meetings</div>`;
+          past.slice(0, 10).forEach(m => html += renderMeetingCard(m, true));
+        }
+        return html;
+      }
+
+      function renderMeetingCard(m, isPast) {
+        const attendees = (m.attendeeIds || []).map(id => DB.getUser(id)).filter(Boolean);
+        const creator = DB.getUser(m.createdBy);
+        return `
+          <div class="card" style="cursor: pointer; ${isPast ? 'opacity: 0.7;' : ''}" data-meeting="${m.id}">
+            <div class="flex items-center gap-3 mb-2">
+              <div class="avatar sm" style="background: linear-gradient(135deg, var(--accent), #06B6D4);">📅</div>
+              <div class="list-item-main">
+                <div class="list-item-title">${escapeHtml(m.title)}</div>
+                <div class="list-item-sub">${DB.formatDate(m.date)} · ${m.startTime}–${m.endTime}</div>
+              </div>
+              ${m.date === new Date().toISOString().slice(0, 10) ? '<span class="badge badge-warning" data-i18n="Today">Today</span>' : ''}
+            </div>
+            ${m.location ? `<div class="text-sm mb-1">📍 ${escapeHtml(m.location)}</div>` : ''}
+            <div class="text-xs text-muted">👥 ${attendees.length} ${I18N.t('people')}</div>
+          </div>
+        `;
+      }
+
+      function bindMeetings() {
+        document.querySelectorAll('[data-meeting]').forEach(c => {
+          c.addEventListener('click', () => showMeetingDetail(c.dataset.meeting));
+        });
+      }
+
+      window.openMeeting = function(meetingId) {
+        const f = document.getElementById('meeting-form');
+        f.dataset.editId = meetingId || '';
+        const editing = meetingId ? DB.getMeetings().find(m => m.id === meetingId) : null;
+        const today = new Date().toISOString().slice(0, 10);
+        f.title.value = editing ? editing.title : '';
+        f.date.value = editing ? editing.date : today;
+        f.startTime.value = editing ? editing.startTime : '09:00';
+        f.endTime.value = editing ? editing.endTime : '10:00';
+        f.location.value = editing ? editing.location : '';
+        f.notes.value = editing ? editing.notes : '';
+        document.getElementById('meeting-modal-title').textContent =
+          editing ? I18N.t('Edit meeting') : I18N.t('New meeting');
+
+        // Render attendee list
+        const users = DB.getUsersByCompany(ctx.company.id);
+        const selectedIds = editing ? new Set(editing.attendeeIds) : new Set([ctx.user.id]);
+        const list = document.getElementById('attendees-list');
+        list.innerHTML = users.map(u => `
+          <label class="list-item" style="cursor: pointer;">
+            <input type="checkbox" data-attendee="${u.id}" ${selectedIds.has(u.id) ? 'checked' : ''} style="width: 20px; height: 20px;">
+            ${UI.avatarEl(u, 'sm')}
+            <div class="list-item-main">
+              <div class="list-item-title">${escapeHtml(u.name)}</div>
+              <div class="list-item-sub">${escapeHtml(u.position || u.email)}</div>
+            </div>
+          </label>
+        `).join('');
+
+        UI.openModal('meeting-modal');
+      };
+
+      window.toggleAllAttendees = function() {
+        const boxes = document.querySelectorAll('[data-attendee]');
+        const allChecked = Array.from(boxes).every(b => b.checked);
+        boxes.forEach(b => b.checked = !allChecked);
+      };
+
+      function showMeetingDetail(id) {
+        const m = DB.getMeetings().find(x => x.id === id);
+        if (!m) return;
+        const creator = DB.getUser(m.createdBy);
+        const attendees = (m.attendeeIds || []).map(id => DB.getUser(id)).filter(Boolean);
+        const canEdit = isAdmin || m.createdBy === ctx.user.id;
+
+        document.getElementById('meeting-detail-body').innerHTML = `
+          <div class="text-center" style="padding: 16px 0 8px;">
+            <div class="avatar lg" style="background: linear-gradient(135deg, var(--accent), #06B6D4); margin: 0 auto;">📅</div>
+            <div style="font-size: 20px; font-weight: 700; margin-top: 12px;">${escapeHtml(m.title)}</div>
+            <div class="text-muted text-sm mt-1">${DB.formatDate(m.date)} · ${m.startTime}–${m.endTime}</div>
+          </div>
+
+          ${m.location ? `<div class="card"><div class="text-sm"><b>📍 <span data-i18n="Location">Location</span></b><br>${escapeHtml(m.location)}</div></div>` : ''}
+          ${m.notes ? `<div class="card"><div class="text-sm"><b><span data-i18n="Notes">Notes</span></b><br>${escapeHtml(m.notes)}</div></div>` : ''}
+
+          <div class="card">
+            <div class="card-title mb-2"><span data-i18n="Attendees">Attendees</span> (${attendees.length})</div>
+            ${attendees.map(u => `
+              <div class="list-item">
+                ${UI.avatarEl(u, 'sm')}
+                <div class="list-item-main">
+                  <div class="list-item-title">${escapeHtml(u.name)}</div>
+                </div>
+              </div>
+            `).join('')}
+            ${creator ? `<div class="text-xs text-muted mt-2"><span data-i18n="Created by">Created by</span>: ${escapeHtml(creator.name)}</div>` : ''}
+          </div>
+
+          ${canEdit ? `
+            <div class="flex gap-2 mt-3">
+              <button class="btn btn-secondary flex-1" onclick="UI.closeModal('meeting-detail-modal'); openMeeting('${m.id}')">✏️ <span data-i18n="Edit">Edit</span></button>
+              <button class="btn btn-danger flex-1" onclick="deleteMeeting('${m.id}')">🗑 <span data-i18n="Delete">Delete</span></button>
+            </div>
+          ` : ''}
+        `;
+        UI.openModal('meeting-detail-modal');
+        I18N.apply();
+      }
+
+      window.deleteMeeting = function(id) {
+        UI.confirm(I18N.t('Delete meeting') + '?', () => {
+          DB.deleteMeeting(id);
+          UI.closeModal('meeting-detail-modal');
+          UI.toast(I18N.t('Removed'), 'success');
+          render();
+        });
+      };
+
+      document.getElementById('meeting-form').addEventListener('submit', e => {
+        e.preventDefault();
+        const f = e.target;
+        const attendeeIds = Array.from(f.querySelectorAll('[data-attendee]:checked'))
+          .map(b => b.dataset.attendee);
+        if (attendeeIds.length === 0) {
+          UI.toast(I18N.t('You must select at least one attendee'), 'error'); return;
+        }
+        if (f.endTime.value < f.startTime.value) {
+          UI.toast(I18N.t('End date must be after start date'), 'error'); return;
+        }
+        const editId = f.dataset.editId;
+        if (editId) {
+          const m = DB.getMeetings().find(x => x.id === editId);
+          if (m) {
+            m.title = f.title.value.trim();
+            m.date = f.date.value;
+            m.startTime = f.startTime.value;
+            m.endTime = f.endTime.value;
+            m.location = f.location.value.trim();
+            m.notes = f.notes.value.trim();
+            m.attendeeIds = attendeeIds;
+            DB.saveMeeting(m);
+          }
+        } else {
+          DB.createMeeting({
+            companyId: ctx.company.id,
+            title: f.title.value.trim(),
+            date: f.date.value,
+            startTime: f.startTime.value,
+            endTime: f.endTime.value,
+            location: f.location.value.trim(),
+            notes: f.notes.value.trim(),
+            attendeeIds,
+            createdBy: ctx.user.id
+          });
+        }
+        UI.toast(I18N.t('Settings saved'), 'success');
+        UI.closeModal('meeting-modal');
+        render();
+      });
+
+      function escapeHtml(s) {
+        return String(s || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+      }
+
+      // Close modals on overlay click
+      document.querySelectorAll('.modal-overlay').forEach(m => {
+        m.addEventListener('click', e => {
+          if (e.target === m) m.classList.remove('active');
+        });
+      });
+
+      render();
+      UI.renderBottomNav('schedule', ctx.user.role);
+      I18N.injectToggle();
+    }
+  </script>
+</body>
+</html>

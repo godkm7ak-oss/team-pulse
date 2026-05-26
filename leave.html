@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#3B4FCA">
+  <title>TeamPulse — Leave</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="app">
+  <main class="container" id="root"></main>
+
+  <!-- Request leave modal -->
+  <div class="modal-overlay" id="leave-modal">
+    <div class="modal">
+      <div class="modal-handle"></div>
+      <div class="modal-header">
+        <div class="modal-title" data-i18n="Request Leave">Request Leave</div>
+        <button class="icon-btn" onclick="UI.closeModal('leave-modal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="leave-form">
+          <div class="form-group">
+            <label class="form-label" data-i18n="Leave type">Leave type</label>
+            <select class="form-select" name="type" required>
+              <option value="annual" data-i18n="Annual leave">Annual leave</option>
+              <option value="sick" data-i18n="Sick leave">Sick leave</option>
+              <option value="personal" data-i18n="Personal leave">Personal leave</option>
+              <option value="emergency" data-i18n="Emergency leave">Emergency leave</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" data-i18n="Start date">Start date</label>
+              <input class="form-input" type="date" name="startDate" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" data-i18n="End date">End date</label>
+              <input class="form-input" type="date" name="endDate" required>
+            </div>
+          </div>
+          <div id="days-preview" class="text-sm text-muted mb-3"></div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="Reason">Reason</label>
+            <textarea class="form-textarea" name="reason" placeholder=""></textarea>
+          </div>
+          <button class="btn btn-primary btn-block btn-lg" type="submit" data-i18n="Submit request">Submit request</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    const ctx = UI.requireAuth();
+    if (ctx) {
+      const isAdmin = ctx.user.role === 'admin';
+
+      UI.renderHeader(isAdmin ? 'Team Leaves' : 'My Leaves', {
+        action: `<button class="icon-btn primary" onclick="openLeave()">+</button>`
+      });
+
+      let currentTab = 'all';
+
+      function render() {
+        const root = document.getElementById('root');
+        const leaves = isAdmin
+          ? DB.getLeavesByCompany(ctx.company.id)
+          : DB.getLeavesByUser(ctx.user.id);
+
+        const filtered = currentTab === 'all' ? leaves : leaves.filter(l => l.status === currentTab);
+        const sorted = filtered.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+        // For employees: show their balance up top
+        let html = '';
+        if (!isAdmin) {
+          const balance = DB.getLeaveBalance(ctx.user.id);
+          html += `<div class="section-title" data-i18n="Leave balance">Leave balance</div>`;
+          html += `<div class="stat-grid">`;
+          ['annual', 'sick', 'personal', 'emergency'].forEach(type => {
+            const b = balance[type];
+            const remaining = b.total - b.used;
+            const colors = { annual: 'blue', sick: 'red', personal: 'cyan', emergency: 'amber' };
+            const labels = { annual: 'Annual leave', sick: 'Sick leave', personal: 'Personal leave', emergency: 'Emergency leave' };
+            const icons = { annual: '🏖️', sick: '🤒', personal: '📝', emergency: '🚨' };
+            html += `
+              <div class="stat-card ${colors[type] || 'blue'}">
+                <div class="icon-wrap">${icons[type]}</div>
+                <div class="stat-label" data-i18n="${labels[type]}">${I18N.t(labels[type])}</div>
+                <div class="stat-value">${remaining}</div>
+                <div class="stat-sub">${b.used} / ${b.total} ${I18N.t('days')}</div>
+              </div>
+            `;
+          });
+          html += `</div>`;
+        }
+
+        html += `
+          <div class="tabs">
+            <button class="tab ${currentTab === 'all' ? 'active' : ''}" data-tab="all" data-i18n="All">All</button>
+            <button class="tab ${currentTab === 'pending' ? 'active' : ''}" data-tab="pending" data-i18n="Pending">Pending</button>
+            <button class="tab ${currentTab === 'approved' ? 'active' : ''}" data-tab="approved" data-i18n="Approved">Approved</button>
+            <button class="tab ${currentTab === 'rejected' ? 'active' : ''}" data-tab="rejected" data-i18n="Rejected">Rejected</button>
+          </div>
+        `;
+
+        if (sorted.length === 0) {
+          html += `
+            <div class="card">
+              <div class="empty">
+                <div class="icon">📅</div>
+                <div class="title" data-i18n="No leave requests yet">No leave requests yet</div>
+                <div class="sub" data-i18n="Tap &quot;Request leave&quot; to create one">Tap "Request leave" to create one</div>
+              </div>
+            </div>
+          `;
+        } else {
+          html += sorted.map(l => {
+            const u = DB.getUser(l.userId);
+            const reviewer = l.reviewedBy ? DB.getUser(l.reviewedBy) : null;
+            return `
+              <div class="card">
+                <div class="flex items-center gap-3 mb-3">
+                  ${UI.avatarEl(u)}
+                  <div class="list-item-main">
+                    <div class="list-item-title">${u ? u.name : '—'}</div>
+                    <div class="list-item-sub">${DB.formatDate(l.createdAt)}</div>
+                  </div>
+                  ${UI.statusBadge(l.status)}
+                </div>
+                <div class="flex items-center gap-3 mb-2">
+                  ${UI.leaveTypeBadge(l.type)}
+                  <span class="text-sm"><b>${l.days}</b> ${I18N.t('day')}</span>
+                  <span class="text-sm text-muted">${DB.formatDate(l.startDate)} – ${DB.formatDate(l.endDate)}</span>
+                </div>
+                ${l.reason ? `<div class="text-sm text-muted mb-2" style="background: var(--bg); padding: 10px; border-radius: 8px;">${escapeHtml(l.reason)}</div>` : ''}
+                ${reviewer ? `<div class="text-xs text-muted"><span data-i18n="Reviewed by">${I18N.t('Reviewed by')}</span>: ${reviewer.name}</div>` : ''}
+                ${isAdmin && l.status === 'pending' ? `
+                  <div class="action-row">
+                    <button class="btn btn-success" data-action="approve" data-id="${l.id}" data-i18n="Approve">Approve</button>
+                    <button class="btn btn-danger" data-action="reject" data-id="${l.id}" data-i18n="Reject">Reject</button>
+                  </div>
+                ` : ''}
+                ${!isAdmin && l.status === 'pending' && l.userId === ctx.user.id ? `
+                  <div class="action-row">
+                    <button class="btn btn-secondary" data-action="cancel" data-id="${l.id}" data-i18n="Cancel">Cancel</button>
+                  </div>
+                ` : ''}
+              </div>
+            `;
+          }).join('');
+        }
+
+        root.innerHTML = html;
+
+        // Bind tabs
+        root.querySelectorAll('[data-tab]').forEach(t => {
+          t.addEventListener('click', () => { currentTab = t.dataset.tab; render(); });
+        });
+
+        // Bind actions
+        root.querySelectorAll('[data-action]').forEach(b => {
+          b.addEventListener('click', () => handleAction(b.dataset.action, b.dataset.id));
+        });
+
+        I18N.apply();
+      }
+
+      function handleAction(action, id) {
+        const leave = DB.getLeaves().find(l => l.id === id);
+        if (!leave) return;
+        if (action === 'approve') {
+          leave.status = 'approved';
+          leave.reviewedBy = ctx.user.id;
+          leave.reviewedAt = new Date().toISOString();
+          DB.saveLeave(leave);
+          UI.toast(I18N.t('Approved'), 'success');
+          render();
+        } else if (action === 'reject') {
+          leave.status = 'rejected';
+          leave.reviewedBy = ctx.user.id;
+          leave.reviewedAt = new Date().toISOString();
+          DB.saveLeave(leave);
+          UI.toast(I18N.t('Rejected'), 'warning');
+          render();
+        } else if (action === 'cancel') {
+          UI.confirm('Cancel this request?', () => {
+            DB.deleteLeave(id);
+            render();
+          });
+        }
+      }
+
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+      }
+
+      window.openLeave = function() {
+        const today = new Date().toISOString().slice(0, 10);
+        document.querySelector('#leave-form [name=startDate]').value = today;
+        document.querySelector('#leave-form [name=endDate]').value = today;
+        updateDaysPreview();
+        UI.openModal('leave-modal');
+      };
+
+      function updateDaysPreview() {
+        const s = document.querySelector('#leave-form [name=startDate]').value;
+        const e = document.querySelector('#leave-form [name=endDate]').value;
+        const preview = document.getElementById('days-preview');
+        if (s && e && e >= s) {
+          const days = DB.diffDaysInclusive(s, e);
+          preview.innerHTML = `<b>${days}</b> ${I18N.t('day')} ${I18N.t('Total days').toLowerCase()}`;
+        } else if (s && e && e < s) {
+          preview.innerHTML = `<span style="color: var(--danger);">${I18N.t('End date must be after start date')}</span>`;
+        } else {
+          preview.innerHTML = '';
+        }
+      }
+
+      document.querySelector('#leave-form [name=startDate]').addEventListener('change', updateDaysPreview);
+      document.querySelector('#leave-form [name=endDate]').addEventListener('change', updateDaysPreview);
+
+      document.getElementById('leave-form').addEventListener('submit', e => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const startDate = fd.get('startDate');
+        const endDate = fd.get('endDate');
+        if (endDate < startDate) {
+          UI.toast(I18N.t('End date must be after start date'), 'error'); return;
+        }
+        DB.createLeave({
+          companyId: ctx.company.id,
+          userId: ctx.user.id,
+          type: fd.get('type'),
+          startDate, endDate,
+          reason: fd.get('reason')
+        });
+        UI.toast(I18N.t('Submit request'), 'success');
+        UI.closeModal('leave-modal');
+        e.target.reset();
+        render();
+      });
+
+      // Close modal on overlay click
+      document.getElementById('leave-modal').addEventListener('click', e => {
+        if (e.target.id === 'leave-modal') UI.closeModal('leave-modal');
+      });
+
+      render();
+      UI.renderBottomNav('leave', ctx.user.role);
+      I18N.injectToggle();
+    }
+  </script>
+</body>
+</html>

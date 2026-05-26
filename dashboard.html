@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#3B4FCA">
+  <title>TeamPulse — Dashboard</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="app">
+  <main class="container" id="root"></main>
+
+  <script src="js/data.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    const ctx = UI.requireAuth();
+    if (ctx) {
+      UI.renderHeader('TeamPulse', { subtitle: ctx.company.name });
+
+      const today = new Date().toISOString().slice(0, 10);
+      const todayCheckin = DB.getTodayCheckin(ctx.user.id);
+      const greeting = UI.greeting();
+      const balance = DB.getLeaveBalance(ctx.user.id);
+
+      const isAdmin = ctx.user.role === 'admin';
+      const root = document.getElementById('root');
+
+      // Admin gets team overview, employees get personal view
+      let html = `
+        <div class="hero-card">
+          <div class="greeting" data-i18n="${greeting}">${I18N.t(greeting)}</div>
+          <div class="name">${ctx.user.name} 👋</div>
+          <div class="status-row">
+            <div class="hero-status">
+              <div class="lbl" data-i18n="Status">Status</div>
+              <div class="val">${
+                !todayCheckin ? I18N.t('Not checked in') :
+                todayCheckin.checkOutAt ? I18N.t('Checked out') :
+                I18N.t('Working')
+              }</div>
+            </div>
+            <div class="hero-status">
+              <div class="lbl" data-i18n="Time in">Time in</div>
+              <div class="val">${todayCheckin ? DB.formatTime(todayCheckin.checkInAt) : '—'}</div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Today's shift card
+      const todaySchedule = DB.getScheduleForUserOnDate(ctx.user.id, today);
+      const todayShift = todaySchedule ? DB.getShift(ctx.company, todaySchedule.shiftId) : null;
+      if (todayShift) {
+        html += `
+          <div class="card" style="border-left: 4px solid ${todayShift.color || 'var(--primary)'};">
+            <div class="flex items-center gap-3">
+              <div class="avatar" style="background: ${todayShift.color || 'var(--primary)'};">🕒</div>
+              <div class="list-item-main">
+                <div class="text-xs text-muted" data-i18n="Today's shift">Today's shift</div>
+                <div style="font-size: 16px; font-weight: 700;">${todayShift.name}</div>
+                <div class="text-sm text-muted">${todayShift.start} – ${todayShift.end}</div>
+              </div>
+              <a href="schedule.html" class="btn btn-secondary btn-sm" style="text-decoration: none;">›</a>
+            </div>
+          </div>
+        `;
+      }
+
+      // Upcoming meetings card (next 3)
+      const upcomingMtgs = DB.getUpcomingMeetings({ id: ctx.user.id, companyId: ctx.company.id }, 3);
+      if (upcomingMtgs.length > 0) {
+        html += `
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title" data-i18n="Upcoming meetings">Upcoming meetings</div>
+              <a href="schedule.html?tab=meetings" class="text-sm" style="color: var(--primary); text-decoration: none; font-weight: 600;">→</a>
+            </div>
+            ${upcomingMtgs.map(m => `
+              <div class="list-item">
+                <div class="avatar sm" style="background: linear-gradient(135deg, var(--accent), #06B6D4);">📅</div>
+                <div class="list-item-main">
+                  <div class="list-item-title">${m.title}</div>
+                  <div class="list-item-sub">${DB.formatDate(m.date)} · ${m.startTime}–${m.endTime}${m.location ? ' · 📍 ' + m.location : ''}</div>
+                </div>
+                ${m.date === today ? '<span class="badge badge-warning" data-i18n="Today">Today</span>' : ''}
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+
+      if (isAdmin) {
+        // Admin stats
+        const allUsers = DB.getUsersByCompany(ctx.company.id);
+        const todayCheckins = DB.getCheckinsByCompany(ctx.company.id).filter(c => c.date === today);
+        const onLeave = DB.getLeavesByCompany(ctx.company.id).filter(l => {
+          if (l.status !== 'approved') return false;
+          return l.startDate <= today && l.endDate >= today;
+        });
+        const lateToday = todayCheckins.filter(c => c.lateMinutes > 0);
+
+        html += `
+          <div class="stat-grid">
+            <div class="stat-card blue">
+              <div class="icon-wrap">👥</div>
+              <div class="stat-label" data-i18n="Total employees">Total employees</div>
+              <div class="stat-value">${allUsers.length}</div>
+            </div>
+            <div class="stat-card green">
+              <div class="icon-wrap">✓</div>
+              <div class="stat-label" data-i18n="In today">In today</div>
+              <div class="stat-value">${todayCheckins.length}</div>
+            </div>
+            <div class="stat-card amber">
+              <div class="icon-wrap">⏰</div>
+              <div class="stat-label" data-i18n="Late today">Late today</div>
+              <div class="stat-value">${lateToday.length}</div>
+            </div>
+            <div class="stat-card cyan">
+              <div class="icon-wrap">📅</div>
+              <div class="stat-label" data-i18n="On leave">On leave</div>
+              <div class="stat-value">${onLeave.length}</div>
+            </div>
+          </div>
+        `;
+
+        // Pending leave requests
+        const pending = DB.getLeavesByCompany(ctx.company.id)
+          .filter(l => l.status === 'pending')
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+          .slice(0, 5);
+
+        html += `
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title" data-i18n="Pending requests">Pending requests</div>
+              <a href="leave.html" class="text-sm" style="color: var(--primary); text-decoration: none; font-weight: 600;">→</a>
+            </div>
+            ${pending.length === 0 ? `
+              <div class="empty">
+                <div class="icon">✨</div>
+                <div class="title" data-i18n="No pending requests">No pending requests</div>
+              </div>
+            ` : pending.map(l => {
+              const u = DB.getUser(l.userId);
+              return `
+                <div class="list-item">
+                  ${UI.avatarEl(u)}
+                  <div class="list-item-main">
+                    <div class="list-item-title">${u ? u.name : '—'}</div>
+                    <div class="list-item-sub">${l.days} ${I18N.t('day')} · ${DB.formatDate(l.startDate)}</div>
+                  </div>
+                  ${UI.leaveTypeBadge(l.type)}
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+      } else {
+        // Employee: leave balance
+        html += `<div class="section-title" data-i18n="Leave balance">Leave balance</div>`;
+        html += `<div class="stat-grid">`;
+        ['annual', 'sick', 'personal', 'emergency'].forEach(type => {
+          const b = balance[type];
+          const remaining = b.total - b.used;
+          const colors = { annual: 'blue', sick: 'red', personal: 'cyan', emergency: 'amber' };
+          const labels = { annual: 'Annual leave', sick: 'Sick leave', personal: 'Personal leave', emergency: 'Emergency leave' };
+          const icons = { annual: '🏖️', sick: '🤒', personal: '📝', emergency: '🚨' };
+          html += `
+            <div class="stat-card ${colors[type] || 'blue'}">
+              <div class="icon-wrap">${icons[type]}</div>
+              <div class="stat-label" data-i18n="${labels[type]}">${I18N.t(labels[type])}</div>
+              <div class="stat-value">${remaining}</div>
+              <div class="stat-sub">${b.used} / ${b.total} ${I18N.t('days')}</div>
+            </div>
+          `;
+        });
+        html += `</div>`;
+      }
+
+      // Quick actions
+      html += `
+        <div class="section-title" data-i18n="Quick Actions">Quick Actions</div>
+        <div class="card">
+          <a href="checkin.html" class="list-item" style="text-decoration: none; color: inherit;">
+            <div class="avatar" style="background: linear-gradient(135deg, var(--primary), var(--accent));">⏱</div>
+            <div class="list-item-main">
+              <div class="list-item-title" data-i18n="Check In">Check In</div>
+              <div class="list-item-sub" data-i18n="Tap to check in">Tap to check in</div>
+            </div>
+            <span style="color: var(--text-3);">›</span>
+          </a>
+          <a href="leave.html" class="list-item" style="text-decoration: none; color: inherit;">
+            <div class="avatar" style="background: linear-gradient(135deg, var(--success), #059669);">📅</div>
+            <div class="list-item-main">
+              <div class="list-item-title" data-i18n="Request leave">Request leave</div>
+              <div class="list-item-sub" data-i18n="Leave Management">Leave Management</div>
+            </div>
+            <span style="color: var(--text-3);">›</span>
+          </a>
+          ${isAdmin ? `
+            <a href="employees.html" class="list-item" style="text-decoration: none; color: inherit;">
+              <div class="avatar" style="background: linear-gradient(135deg, #8B5CF6, #6D28D9);">👥</div>
+              <div class="list-item-main">
+                <div class="list-item-title" data-i18n="View team">View team</div>
+                <div class="list-item-sub" data-i18n="Team Overview">Team Overview</div>
+              </div>
+              <span style="color: var(--text-3);">›</span>
+            </a>
+          ` : `
+            <a href="attendance.html" class="list-item" style="text-decoration: none; color: inherit;">
+              <div class="avatar" style="background: linear-gradient(135deg, var(--warning), #B45309);">📊</div>
+              <div class="list-item-main">
+                <div class="list-item-title" data-i18n="Attendance">Attendance</div>
+                <div class="list-item-sub" data-i18n="View my records">View my records</div>
+              </div>
+              <span style="color: var(--text-3);">›</span>
+            </a>
+          `}
+        </div>
+      `;
+
+      // Recent activity for employee — recent leaves
+      if (!isAdmin) {
+        const myLeaves = DB.getLeavesByUser(ctx.user.id)
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+          .slice(0, 3);
+        if (myLeaves.length > 0) {
+          html += `
+            <div class="section-title" data-i18n="My Leaves">My Leaves</div>
+            <div class="card">
+              ${myLeaves.map(l => `
+                <div class="list-item">
+                  <div class="list-item-main">
+                    <div class="list-item-title">${UI.leaveTypeBadge(l.type)} <span style="margin-left: 6px;">${l.days} ${I18N.t('day')}</span></div>
+                    <div class="list-item-sub">${DB.formatDate(l.startDate)} – ${DB.formatDate(l.endDate)}</div>
+                  </div>
+                  ${UI.statusBadge(l.status)}
+                </div>
+              `).join('')}
+            </div>
+          `;
+        }
+      }
+
+      root.innerHTML = html;
+      UI.renderBottomNav('dashboard', ctx.user.role);
+      I18N.apply();
+      I18N.injectToggle();
+    }
+  </script>
+</body>
+</html>
