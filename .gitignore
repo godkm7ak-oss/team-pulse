@@ -13,6 +13,13 @@ desktop.ini
 .env
 .env.local
 
-# Node (if backend added later)
+# Node
 node_modules/
 npm-debug.log*
+
+# Vite build output
+dist/
+dist-ssr/
+
+# PWA
+dev-dist/

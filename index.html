@@ -1,179 +1,24 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="th">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#3B4FCA">
-  <title>TeamPulse — Smart HR for Modern Teams</title>
-  <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css">
-</head>
-<body>
-  <nav class="landing-nav">
-    <div class="landing-nav-inner">
-      <a href="index.html" class="logo" style="text-decoration: none;">
-        <span class="logo-icon">⚡</span>
-        <span>TeamPulse</span>
-      </a>
-      <div class="links" data-lang-slot>
-        <a href="auth.html" class="btn btn-secondary btn-sm" data-i18n="Sign in">Sign in</a>
-      </div>
-    </div>
-  </nav>
-
-  <section class="landing-hero">
-    <h1>
-      <span data-i18n="Smart HR for modern teams">Smart HR for modern teams</span>
-    </h1>
-    <p data-i18n="Manage leave, attendance, and your team — all in one simple app. Built for companies that want to stop using spreadsheets.">
-      Manage leave, attendance, and your team — all in one simple app. Built for companies that want to stop using spreadsheets.
-    </p>
-    <div class="landing-cta">
-      <a href="auth.html?mode=signup" class="btn btn-primary btn-lg" data-i18n="Start free trial">Start free trial</a>
-      <a href="auth.html" class="btn btn-secondary btn-lg" data-i18n="Sign in">Sign in</a>
-    </div>
-    <div style="margin-top: 18px;">
-      <button id="demo-btn" class="btn btn-ghost" style="font-size: 14px;">
-        ✨ <span data-i18n="Try with demo data">Try with demo data</span>
-      </button>
-    </div>
-  </section>
-
-  <section class="landing-features">
-    <h2 class="landing-section-title" data-i18n="Everything you need to manage your team">Everything you need to manage your team</h2>
-    <p class="landing-section-sub" data-i18n="Built for Thai SMEs who want to run their team professionally without the complexity.">
-      Built for Thai SMEs who want to run their team professionally without the complexity.
-    </p>
-
-    <div class="feature-grid">
-      <div class="feature-card">
-        <div class="feature-icon">📅</div>
-        <h3 data-i18n="Leave Management">Leave Management</h3>
-        <p data-i18n="Sick, annual, personal, emergency — employees request, you approve. Balances tracked automatically.">
-          Sick, annual, personal, emergency — employees request, you approve. Balances tracked automatically.
-        </p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">⏱️</div>
-        <h3 data-i18n="Smart Check-in">Smart Check-in</h3>
-        <p data-i18n="QR code at the office or GPS location lock. Track lateness automatically.">
-          QR code at the office or GPS location lock. Track lateness automatically.
-        </p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">👥</div>
-        <h3 data-i18n="Team Overview">Team Overview</h3>
-        <p data-i18n="See who is in, who is out, and who is on leave — at a glance.">
-          See who is in, who is out, and who is on leave — at a glance.
-        </p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">🏢</div>
-        <h3 data-i18n="Multi-company">Multi-company</h3>
-        <p data-i18n="Each company gets their own private workspace with a unique join code.">
-          Each company gets their own private workspace with a unique join code.
-        </p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">📱</div>
-        <h3 data-i18n="Mobile-first">Mobile-first</h3>
-        <p data-i18n="Designed for phones. Works on any device with a browser.">
-          Designed for phones. Works on any device with a browser.
-        </p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">💰</div>
-        <h3 data-i18n="Affordable">Affordable</h3>
-        <p data-i18n="Per-employee pricing in THB. Start small, scale as you grow.">
-          Per-employee pricing in THB. Start small, scale as you grow.
-        </p>
-      </div>
-    </div>
-  </section>
-
-  <section class="landing-features" style="background: var(--surface); border-top: 1px solid var(--border-light); border-bottom: 1px solid var(--border-light);">
-    <h2 class="landing-section-title" data-i18n="Simple, transparent pricing">Simple, transparent pricing</h2>
-    <p class="landing-section-sub" data-i18n="Pay only for what you use. Cancel anytime.">Pay only for what you use. Cancel anytime.</p>
-
-    <div class="pricing-grid">
-      <div class="price-card">
-        <div class="plan" data-i18n="Starter">Starter</div>
-        <div class="price">
-          <span class="currency">฿</span>490<span class="period" data-i18n="/month">/month</span>
-        </div>
-        <div class="desc" data-i18n="Up to 10 employees">Up to 10 employees</div>
-        <ul>
-          <li data-i18n="Leave management">Leave management</li>
-          <li data-i18n="GPS check-in">GPS check-in</li>
-          <li data-i18n="QR check-in">QR check-in</li>
-          <li data-i18n="Email support">Email support</li>
-        </ul>
-        <a href="auth.html?mode=signup&plan=starter" class="btn btn-secondary btn-block" data-i18n="Get started">Get started</a>
-      </div>
-
-      <div class="price-card featured">
-        <div class="featured-badge" data-i18n="Most popular">Most popular</div>
-        <div class="plan" data-i18n="Pro">Pro</div>
-        <div class="price">
-          <span class="currency">฿</span>1,490<span class="period" data-i18n="/month">/month</span>
-        </div>
-        <div class="desc" data-i18n="Up to 50 employees">Up to 50 employees</div>
-        <ul>
-          <li data-i18n="Leave management">Leave management</li>
-          <li data-i18n="GPS check-in">GPS check-in</li>
-          <li data-i18n="QR check-in">QR check-in</li>
-          <li data-i18n="Reports & exports">Reports & exports</li>
-          <li data-i18n="Priority support">Priority support</li>
-        </ul>
-        <a href="auth.html?mode=signup&plan=pro" class="btn btn-primary btn-block" data-i18n="Get started">Get started</a>
-      </div>
-
-      <div class="price-card">
-        <div class="plan" data-i18n="Business">Business</div>
-        <div class="price">
-          <span class="currency">฿</span>3,490<span class="period" data-i18n="/month">/month</span>
-        </div>
-        <div class="desc" data-i18n="Unlimited employees">Unlimited employees</div>
-        <ul>
-          <li data-i18n="Leave management">Leave management</li>
-          <li data-i18n="GPS check-in">GPS check-in</li>
-          <li data-i18n="QR check-in">QR check-in</li>
-          <li data-i18n="Reports & exports">Reports & exports</li>
-          <li data-i18n="Custom branding">Custom branding</li>
-          <li data-i18n="API access">API access</li>
-        </ul>
-        <a href="auth.html?mode=signup&plan=business" class="btn btn-secondary btn-block" data-i18n="Get started">Get started</a>
-      </div>
-    </div>
-  </section>
-
-  <footer class="landing-footer">
-    © 2026 TeamPulse · Made for Thai teams 🇹🇭
-  </footer>
-
-  <script src="js/data.js"></script>
-  <script src="js/i18n.js"></script>
-  <script>
-    document.getElementById('demo-btn').addEventListener('click', () => {
-      const hasData = DB.getCompanies().length > 0;
-      const msg = hasData
-        ? (I18N.lang === 'th'
-            ? 'มีข้อมูลอยู่แล้ว — โหลด demo จะเพิ่มเข้าไปอีก ดำเนินการต่อ?'
-            : 'You already have data — loading demo will add more. Continue?')
-        : (I18N.lang === 'th'
-            ? 'โหลดข้อมูลตัวอย่าง? ระบบจะสร้างบริษัทตัวอย่าง + พนักงาน 5 คน + กะ + ตาราง + ประชุม แล้ว login ให้อัตโนมัติ'
-            : 'Load demo data? Creates a sample company + 5 employees + shifts + schedule + meetings, then auto-logs in.');
-      if (!confirm(msg)) return;
-      try {
-        DB.seedDemo();
-        window.location.href = 'dashboard.html';
-      } catch (e) {
-        alert('Error: ' + e.message);
-      }
-    });
-  </script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#3B4FCA" />
+    <meta name="description" content="TeamPulse — ระบบ HR สำหรับธุรกิจไทย" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="TeamPulse" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <title>TeamPulse</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
 </html>

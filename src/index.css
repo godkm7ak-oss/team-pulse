@@ -1,0 +1,134 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-inset-top: env(safe-area-inset-top, 0px);
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    @apply bg-navy-900 text-white font-sans;
+    overscroll-behavior: none;
+  }
+
+  input, textarea, select {
+    font-size: 16px !important; /* prevent iOS zoom on focus */
+  }
+}
+
+@layer components {
+  .safe-bottom {
+    padding-bottom: calc(4rem + var(--safe-area-inset-bottom));
+  }
+
+  .pb-nav {
+    padding-bottom: calc(5rem + var(--safe-area-inset-bottom));
+  }
+
+  .bottom-nav {
+    padding-bottom: var(--safe-area-inset-bottom);
+  }
+
+  .btn-primary {
+    @apply bg-primary text-white font-semibold rounded-2xl px-6 py-3.5
+           active:scale-[0.97] transition-all duration-150 shadow-button
+           disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100
+           flex items-center justify-center gap-2 min-h-[48px];
+  }
+
+  .btn-secondary {
+    @apply bg-white/10 text-white font-semibold rounded-2xl px-6 py-3.5
+           active:scale-[0.97] transition-all duration-150 border border-white/10
+           disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100
+           flex items-center justify-center gap-2 min-h-[48px];
+  }
+
+  .btn-ghost {
+    @apply text-white/70 font-medium rounded-xl px-4 py-2.5
+           active:scale-[0.97] transition-all duration-150
+           hover:bg-white/5 flex items-center gap-2 min-h-[44px];
+  }
+
+  /* input-field uses raw CSS for the non-standard /8 opacity */
+  .input-field {
+    @apply w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3.5
+           text-white placeholder-white/30 focus:outline-none focus:border-primary/60
+           transition-all duration-150 min-h-[52px];
+  }
+  .input-field:focus {
+    background-color: rgb(255 255 255 / 0.07);
+  }
+
+  /* card uses raw CSS for border opacity */
+  .card {
+    @apply bg-white/5 rounded-3xl p-5 shadow-card;
+    border: 1px solid rgb(255 255 255 / 0.08);
+  }
+
+  .card-hover {
+    @apply card active:scale-[0.98] transition-all duration-150 cursor-pointer;
+  }
+
+  .shimmer {
+    background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 75%);
+    background-size: 200% 100%;
+    @apply animate-shimmer rounded-xl;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold;
+  }
+
+  /* badge variants — use standard Tailwind opacity values (10, 20) */
+  .badge-pending  { @apply badge bg-yellow-500/20 text-yellow-400; }
+  .badge-approved { @apply badge bg-green-500/20 text-green-400; }
+  .badge-rejected { @apply badge bg-red-500/20 text-red-400; }
+  .badge-active   { @apply badge bg-primary/20 text-primary-300; }
+  .badge-inactive { @apply badge bg-white/10 text-white/40; }
+
+  .page-enter {
+    @apply animate-fade-in;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-to-r from-primary-300 to-indigo-300 bg-clip-text text-transparent;
+  }
+
+  .glass {
+    @apply bg-white/5 backdrop-blur-xl border border-white/10;
+  }
+
+  .scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+}
+
+/* Leaflet map overrides */
+.leaflet-container {
+  background: #1e2840 !important;
+  font-family: 'DM Sans', sans-serif !important;
+}
+.leaflet-control-zoom a {
+  background: #1e2840 !important;
+  color: white !important;
+  border-color: rgba(255,255,255,0.1) !important;
+}
+.leaflet-control-attribution {
+  background: rgba(0,0,0,0.5) !important;
+  color: rgba(255,255,255,0.4) !important;
+}
+.leaflet-control-attribution a { color: rgba(255,255,255,0.6) !important; }
