@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body class="app">
   <main class="container" id="root"></main>
@@ -48,6 +49,7 @@
     </div>
   </div>
 
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="js/data.js"></script>
   <script src="js/i18n.js"></script>
   <script src="js/ui.js"></script>
@@ -132,21 +134,26 @@
 
             <form id="company-form-2" class="card">
               <div class="card-title mb-2" data-i18n="Office location">Office location</div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="form-label" data-i18n="Latitude">Latitude</label>
-                  <input class="form-input" type="number" step="0.000001" name="officeLat" value="${c.officeLat}">
-                </div>
-                <div class="form-group">
-                  <label class="form-label" data-i18n="Longitude">Longitude</label>
-                  <input class="form-input" type="number" step="0.000001" name="officeLng" value="${c.officeLng}">
-                </div>
-              </div>
+              <div class="text-xs text-muted mb-2" data-i18n="Drag the pin or tap the map to set the office location">${I18N.t('Drag the pin or tap the map to set the office location')}</div>
+              <div id="map-picker" style="height: 240px; border-radius: 12px; overflow: hidden; margin-bottom: 14px; border: 1px solid var(--border);"></div>
+              <input type="hidden" name="officeLat" id="hidden-lat" value="${c.officeLat}">
+              <input type="hidden" name="officeLng" id="hidden-lng" value="${c.officeLng}">
               <div class="form-group">
-                <label class="form-label" data-i18n="Allowed radius (m)">Allowed radius (m)</label>
-                <input class="form-input" type="number" name="officeRadiusM" value="${c.officeRadiusM}" min="20" max="5000">
+                <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;">
+                  <span data-i18n="Allowed radius (m)">Allowed radius (m)</span>
+                  <span id="radius-display" style="font-weight:700;color:var(--primary);">${c.officeRadiusM}m</span>
+                </label>
+                <input type="range" name="officeRadiusM" id="radius-slider" value="${c.officeRadiusM}" min="20" max="2000" step="10"
+                       style="width:100%;accent-color:var(--primary);cursor:pointer;margin:6px 0;" oninput="updateRadius(this.value)">
+                <div style="display:flex;justify-content:space-between;">
+                  <span class="text-xs text-muted">20m</span>
+                  <span class="text-xs text-muted">2,000m</span>
+                </div>
               </div>
-              <button class="btn btn-secondary btn-block btn-sm" type="button" onclick="useMyLocation()" data-i18n="Use my current location">Use my current location</button>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                <span class="text-xs text-muted" id="map-coords-display">${c.officeLat.toFixed(4)}°N, ${c.officeLng.toFixed(4)}°E</span>
+                <button class="btn btn-secondary btn-sm" type="button" onclick="useMyLocation()">📍 <span data-i18n="Use my current location">${I18N.t('Use my current location')}</span></button>
+              </div>
 
               <div class="card-title mb-2 mt-3" data-i18n="Allowed check-in methods">Allowed check-in methods</div>
               <div class="setting-row">
@@ -229,6 +236,7 @@
           document.getElementById('company-form-2').addEventListener('submit', save);
           renderShifts();
           I18N.apply();
+          setTimeout(initMapPicker, 0);
         }
 
         // Read a value from any form in the page
@@ -338,13 +346,24 @@
         };
 
         window.useMyLocation = function() {
-          if (!navigator.geolocation) { UI.toast('GPS not available', 'error'); return; }
+          if (!navigator.geolocation) { UI.toast(I18N.t('GPS not available'), 'error'); return; }
           UI.toast(I18N.t('Getting location...'));
           navigator.geolocation.getCurrentPosition(pos => {
-            document.querySelector('[name=officeLat]').value = pos.coords.latitude.toFixed(6);
-            document.querySelector('[name=officeLng]').value = pos.coords.longitude.toFixed(6);
-            UI.toast('Location set', 'success');
-          }, err => UI.toast(I18N.t('Location not available'), 'error'));
+            const { latitude, longitude } = pos.coords;
+            const hidLat = document.getElementById('hidden-lat');
+            const hidLng = document.getElementById('hidden-lng');
+            const dispEl = document.getElementById('map-coords-display');
+            if (hidLat) hidLat.value = latitude.toFixed(6);
+            if (hidLng) hidLng.value = longitude.toFixed(6);
+            if (dispEl) dispEl.textContent = latitude.toFixed(4) + '°N, ' + longitude.toFixed(4) + '°E';
+            if (_sMarker && _sMap && _sCircle) {
+              const ll = L.latLng(latitude, longitude);
+              _sMarker.setLatLng(ll);
+              _sCircle.setLatLng(ll);
+              _sMap.setView(ll, 16);
+            }
+            UI.toast(I18N.t('Location set'), 'success');
+          }, () => UI.toast(I18N.t('Location not available'), 'error'), { enableHighAccuracy: true, timeout: 10000 });
         };
 
         window.upgradePlan = function() {
@@ -435,6 +454,54 @@
         function escapeHtml(s) {
           return String(s || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
         }
+
+        // ===== Map picker =====
+        let _sMap = null, _sMarker = null, _sCircle = null;
+
+        function initMapPicker() {
+          const el = document.getElementById('map-picker');
+          if (!el || typeof L === 'undefined') return;
+          if (_sMap) { _sMap.remove(); _sMap = null; }
+          const c = DB.getCompany(ctx.company.id);
+          const lat = c.officeLat || 13.7563;
+          const lng = c.officeLng || 100.5018;
+          const radius = c.officeRadiusM || 200;
+
+          _sMap = L.map('map-picker', { zoomControl: true, scrollWheelZoom: false }).setView([lat, lng], 16);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            maxZoom: 19
+          }).addTo(_sMap);
+
+          const offIcon = L.divIcon({
+            className: '',
+            html: '<div style="background:#3B4FCA;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;box-shadow:0 2px 8px rgba(59,79,202,.45);border:3px solid #fff;">🏢</div>',
+            iconSize: [30, 30], iconAnchor: [15, 15]
+          });
+          _sMarker = L.marker([lat, lng], { draggable: true, icon: offIcon }).addTo(_sMap);
+          _sCircle = L.circle([lat, lng], {
+            radius, color: '#3B4FCA', fillColor: '#3B4FCA', fillOpacity: 0.1, weight: 2, dashArray: '5 5'
+          }).addTo(_sMap);
+
+          function syncCoords(latlng) {
+            const hidLat = document.getElementById('hidden-lat');
+            const hidLng = document.getElementById('hidden-lng');
+            const dispEl = document.getElementById('map-coords-display');
+            if (hidLat) hidLat.value = latlng.lat.toFixed(6);
+            if (hidLng) hidLng.value = latlng.lng.toFixed(6);
+            if (dispEl) dispEl.textContent = latlng.lat.toFixed(4) + '°N, ' + latlng.lng.toFixed(4) + '°E';
+          }
+          _sMarker.on('dragend', () => { const p = _sMarker.getLatLng(); _sCircle.setLatLng(p); syncCoords(p); });
+          _sMap.on('click', e => { _sMarker.setLatLng(e.latlng); _sCircle.setLatLng(e.latlng); syncCoords(e.latlng); });
+          setTimeout(() => _sMap && _sMap.invalidateSize(), 100);
+        }
+
+        window.updateRadius = function(v) {
+          const n = Number(v);
+          const disp = document.getElementById('radius-display');
+          if (disp) disp.textContent = n + 'm';
+          if (_sCircle) _sCircle.setRadius(n);
+        };
 
         render();
         UI.renderBottomNav('profile', ctx.user.role);

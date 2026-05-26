@@ -367,6 +367,12 @@ const I18N = {
     'Import': { th: 'นำเข้า' },
     'Exported': { th: 'ส่งออกแล้ว' },
 
+    // Map
+    'Drag the pin or tap the map to set the office location': { th: 'ลากหมุดหรือแตะแผนที่เพื่อตั้งตำแหน่งออฟฟิศ' },
+    'Inside office radius': { th: 'อยู่ในรัศมีออฟฟิศ' },
+    'Outside office radius': { th: 'อยู่นอกรัศมีออฟฟิศ' },
+    'You are here': { th: 'คุณอยู่ที่นี่' },
+
     // Errors
     'Invalid email or password': { th: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' },
     'Email already exists': { th: 'อีเมลนี้มีอยู่แล้ว' },

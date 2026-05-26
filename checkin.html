@@ -10,10 +10,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body class="app">
   <main class="container" id="root"></main>
 
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="js/data.js"></script>
   <script src="js/i18n.js"></script>
   <script src="js/ui.js"></script>
@@ -26,6 +28,8 @@
 
       let currentMethod = (ctx.company.checkInMethods && ctx.company.checkInMethods[0]) || 'gps';
       let currentShiftId = null;
+      let gpsMapInstance = null;
+      let _cachedPosition = null; // { latitude, longitude, ts }
       // Auto-pick the closest shift to now
       const _autoShift = DB.guessShiftForTime(ctx.company);
       if (_autoShift) currentShiftId = _autoShift.id;
@@ -166,16 +170,16 @@
       }
 
       function renderMethodContent() {
+        // Destroy previous GPS map if any
+        if (gpsMapInstance) { gpsMapInstance.remove(); gpsMapInstance = null; }
         const el = document.getElementById('method-content');
         if (!el) return;
         if (currentMethod === 'gps') {
           el.innerHTML = `
-            <div class="text-sm text-muted text-center" style="margin: 10px 0;">
-              <span data-i18n="Office location">Office location</span>:
-              ${ctx.company.officeLat.toFixed(4)}, ${ctx.company.officeLng.toFixed(4)} · ${ctx.company.officeRadiusM}m
-            </div>
-            <div id="gps-status" class="text-sm text-center text-muted" style="margin: 8px 0;"></div>
+            <div id="gps-map" style="height:200px;border-radius:10px;overflow:hidden;margin:10px 0;border:1px solid var(--border);"></div>
+            <div id="gps-status" class="text-sm text-center" style="margin:6px 0;min-height:22px;"></div>
           `;
+          setTimeout(initCheckinMap, 0);
         } else if (currentMethod === 'qr') {
           el.innerHTML = `
             <div class="text-sm text-center text-muted mb-3" data-i18n="Scan this QR code at the office">${I18N.t('Scan this QR code at the office')}</div>
@@ -231,21 +235,96 @@
           UI.toast(I18N.t('Location not available'), 'error');
           return;
         }
-        const statusEl = document.getElementById('gps-status');
-        if (statusEl) statusEl.textContent = I18N.t('Getting location...');
-
-        navigator.geolocation.getCurrentPosition(pos => {
-          const { latitude, longitude } = pos.coords;
+        const doCheck = (latitude, longitude) => {
           const d = DB.haversine(latitude, longitude, ctx.company.officeLat, ctx.company.officeLng);
           if (d > ctx.company.officeRadiusM) {
-            if (statusEl) statusEl.textContent = I18N.t('You are not at the office location') + ' (' + Math.round(d) + 'm)';
-            UI.toast(I18N.t('You are not at the office location') + ' — ' + Math.round(d) + I18N.t('m away'), 'error');
+            const statusEl = document.getElementById('gps-status');
+            if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger);font-weight:600;">✗ ${I18N.t('Outside office radius')}</span> · ${Math.round(d)}m`;
+            UI.toast(I18N.t('You are not at the office location') + ' — ' + Math.round(d) + 'm', 'error');
             return;
           }
           performCheckIn('gps');
-        }, err => {
+        };
+        // Reuse cached location if fresh (< 30s) — map already fetched it
+        if (_cachedPosition && (Date.now() - _cachedPosition.ts < 30000)) {
+          doCheck(_cachedPosition.latitude, _cachedPosition.longitude);
+          return;
+        }
+        const statusEl = document.getElementById('gps-status');
+        if (statusEl) statusEl.textContent = I18N.t('Getting location...');
+        navigator.geolocation.getCurrentPosition(pos => {
+          _cachedPosition = { latitude: pos.coords.latitude, longitude: pos.coords.longitude, ts: Date.now() };
+          doCheck(_cachedPosition.latitude, _cachedPosition.longitude);
+        }, () => {
           if (statusEl) statusEl.textContent = I18N.t('Location not available');
           UI.toast(I18N.t('Location not available'), 'error');
+        }, { enableHighAccuracy: true, timeout: 10000 });
+      }
+
+      function initCheckinMap() {
+        const el = document.getElementById('gps-map');
+        if (!el || typeof L === 'undefined') return;
+        const offLat = ctx.company.officeLat;
+        const offLng = ctx.company.officeLng;
+        const radius = ctx.company.officeRadiusM;
+
+        gpsMapInstance = L.map('gps-map', { zoomControl: false, scrollWheelZoom: false }).setView([offLat, offLng], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+          maxZoom: 19
+        }).addTo(gpsMapInstance);
+
+        const offIcon = L.divIcon({
+          className: '',
+          html: '<div style="background:#3B4FCA;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;box-shadow:0 2px 8px rgba(59,79,202,.45);border:3px solid #fff;">🏢</div>',
+          iconSize: [30, 30], iconAnchor: [15, 15]
+        });
+        L.marker([offLat, offLng], { icon: offIcon }).addTo(gpsMapInstance)
+          .bindPopup(I18N.t('Office location'));
+
+        const circle = L.circle([offLat, offLng], {
+          radius, color: '#3B4FCA', fillColor: '#3B4FCA', fillOpacity: 0.08, weight: 2, dashArray: '5 5'
+        }).addTo(gpsMapInstance);
+
+        // Add zoom control bottom-right
+        L.control.zoom({ position: 'bottomright' }).addTo(gpsMapInstance);
+
+        const statusEl = document.getElementById('gps-status');
+        if (statusEl) statusEl.textContent = I18N.t('Getting location...');
+
+        if (!navigator.geolocation) {
+          if (statusEl) statusEl.textContent = I18N.t('Location not available');
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(pos => {
+          const { latitude, longitude } = pos.coords;
+          _cachedPosition = { latitude, longitude, ts: Date.now() };
+          const dist = Math.round(DB.haversine(latitude, longitude, offLat, offLng));
+          const inside = dist <= radius;
+
+          circle.setStyle({
+            color: inside ? '#10B981' : '#EF4444',
+            fillColor: inside ? '#10B981' : '#EF4444'
+          });
+          const uIcon = L.divIcon({
+            className: '',
+            html: `<div style="background:${inside ? '#10B981' : '#EF4444'};width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.3);border:3px solid #fff;">${inside ? '✓' : '✗'}</div>`,
+            iconSize: [26, 26], iconAnchor: [13, 13]
+          });
+          L.marker([latitude, longitude], { icon: uIcon }).addTo(gpsMapInstance)
+            .bindPopup(I18N.t('You are here'));
+          try {
+            gpsMapInstance.fitBounds(
+              L.latLngBounds([[offLat, offLng], [latitude, longitude]]).pad(0.4)
+            );
+          } catch(e) {}
+          if (statusEl) {
+            statusEl.innerHTML = inside
+              ? `<span style="color:var(--success);font-weight:600;">✓ ${I18N.t('Inside office radius')}</span> · ${dist}m`
+              : `<span style="color:var(--danger);font-weight:600;">✗ ${I18N.t('Outside office radius')}</span> · ${dist}m`;
+          }
+        }, () => {
+          if (statusEl) statusEl.textContent = I18N.t('Location not available');
         }, { enableHighAccuracy: true, timeout: 10000 });
       }
 
